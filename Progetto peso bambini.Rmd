@@ -1,0 +1,1286 @@
+# Modello statistico Previsione peso dei neonati.
+
+## librerie utili
+
+```{r}
+options(repos = c(CRAN = "https://cran.stanford.edu/"))
+```
+
+```{r}
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+```{r}
+install.packages('broom')
+```
+
+```{r}
+update.packages('ggplot2')
+update.packages('plotly')
+update.packages('broom')
+library(ggplot2)
+library(lmtest)
+library(car)
+library(plotly)
+library(moments)
+library(psych)
+library(gghalves)
+library(dplyr)
+library(broom)
+```
+
+```{r}
+panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...)
+{
+    par(usr = c(0, 1, 0, 1))
+    r <- abs(cor(x, y))
+    txt <- format(c(r, 0.123456789), digits = digits)[1]
+    txt <- paste0(prefix, txt)
+    if(missing(cex.cor)) cex.cor <- 0.8/strwidth(txt)
+    text(0.5, 0.5, txt, cex = cex.cor * r)
+}
+```
+
+## Importazione del dataset.
+
+Sapendo che all'interno del dataset ci sono delle variabili qualitative specifichiamo all'interno della funzione read.csv l'argomento stringsAsFactors= T
+
+```{r}
+dati<- read.csv('neonati.csv',
+                stringsAsFactors = T)
+attach(dati)
+n<- nrow(dati)
+head(dati,10)
+```
+
+```{r}
+str(dati)
+```
+
+Notiamo che la variabile Fumatrici non é stata convertita in Factor quindi modifichiamola per una corretta visulazzazione successiva.
+
+```{r}
+dati$Fumatrici <- factor(dati$Fumatrici, levels = c(0, 1), labels = c("NO", "SI"))
+```
+
+![](images/clipboard-9133593.png)
+
+Controlliamo che la modifica sia avvenuta con successo
+
+```{r}
+str(dati)
+```
+
+### Rapida occhiata
+
+Possiamo usare la funzione summary per dare una rapida occhiata al nostro dataset per avere un'idea del numero di variabili e alcune statistiche su di esse.
+
+```{r}
+summary(dati)
+```
+
+Il Dataset presenta 2500 osservazioni di 9 diverse tipologie di variabili rappresentanti:
+
+1.  Anni della madre: variabile **quantitativa continua**
+
+2.  N.gravidanze: variabile **quantitativa discreta**
+
+3.  Fumatrici: **variabile dummy** qualitativa convertita in numerica 0 NO 1 SI
+
+4.  Gestazione: variabile **quantitativa continua** (numero di settimane)
+
+5.  Peso: variabile **quantitativa continua**
+
+6.  Lunghezza: variabile **quantitativa continua**
+
+7.  Cranio: variabile **quantitativa continua**
+
+8.  Tipo di parto: Variabile **qualitativa categorica**
+
+9.  Ospedale: variabile **qualitativa categorica**
+
+L'obbiettivo é analizzare i dati cercando di capire le diverse correlazioni che sussistono tra il peso dei bambini e le altre variabili presenti all'interno del dataset e quindi se é possibile prevedere il peso del neonato alla nascita date tutte le altre variabili. Iniziamo con un'esplorazione delle carattersitiche delle diverse variabili.
+
+## Analisi delle variabili numeriche continue
+
+Partiamo con le variabili quantitative continue: PESO, LUNGHEZZA e CRANIO, per ognuna andremo a calcolarne le stime principali e successivamente andremo a visulazzare i relativi grafici nella fattispecie per questa tipologie di variabili andremo a plottare la distribuzione di densitá e il boxplot relativo, successivamente andremo a unirle in un grafico a violino per avere una visualizzazione migliore del dato.
+
+### Peso.
+
+#### Indici e stime
+
+Andiamo ad anilizzare la variabile peso, caloclando le diverse stime e i diversi indici.
+
+```{r}
+summary(Peso)
+quantili_Peso<-quantile(Peso)
+mean_Peso <- mean(Peso)
+median_Peso <- median(Peso)
+minimo_Peso= min(Peso)
+massimo_Peso= max(Peso)
+primo_quartile_Peso=as.numeric(quantili_Peso[2])
+terzo_quartile_Peso=as.numeric(quantili_Peso[4])
+IQR = terzo_quartile_Peso- primo_quartile_Peso 
+lower_whisker = primo_quartile_Peso - 1.5 * IQR
+upper_whisker = terzo_quartile_Peso + 1.5 * IQR
+```
+
+#### Boxplot.
+
+Andiamo a plottare il boxplot della variabile peso per visualizzare la posizione dei diversi indici.
+
+```{r}
+ggplot(data=dati) +
+  geom_boxplot(aes(x=Peso),
+               col='black',
+               fill="lightblue",
+               ) +
+  geom_vline(xintercept=mean_Peso,  
+             col='red',      
+             size=0.5) +
+  geom_vline(xintercept=median_Peso,
+             col='green',
+             size=0.5) +
+  geom_vline(xintercept=primo_quartile_Peso,
+             col='blue',
+             size=0.5) +
+  geom_vline(xintercept =terzo_quartile_Peso,
+             col='blue',
+             size=0.5)+
+  geom_vline(xintercept = lower_whisker,
+             col='black',
+             size=0.5)+
+  geom_vline(xintercept = upper_whisker,
+             col='black',
+             size=0.5)+
+  
+  
+  geom_label(aes(y=0.5, x =3920, label=terzo_quartile_Peso),
+
+             col='blue',fill='white', nudge_x =29 )+
+  
+  geom_label(aes(y=0.5, x =2690 , label=primo_quartile_Peso),
+
+             col='blue',fill='white', nudge_x =-21.5 )+
+  
+  geom_label(aes(y = -0.23, x =2690 , label = round(mean_Peso, 2)),
+             col='red', fill='white', nudge_x = 24.5) +
+  
+  geom_label(aes(y = -0.13, x =3920 , label = round(median_Peso, 2)),
+             col='green', fill='white', nudge_x = -22.5) +
+  
+  geom_label(aes(y=0.5, x= 1745, label= lower_whisker),
+             col='black', fill='white')+
+  
+  geom_label(aes(y=0.5, x= 4865, label= upper_whisker),
+             col='black', fill='white')+
+  
+  
+  geom_point(aes(x=mean_Peso, y=-0.23, color='Media'), size=2) +
+  
+  geom_point(aes(x=median_Peso, y=-0.13, color='Mediana'), size=2) +
+  
+  geom_point(aes(x=primo_quartile_Peso, y=0.5, color="Primo quartile"), size=2) +
+  
+  geom_point(aes(x=terzo_quartile_Peso, y=0.5, color='Terzo quartile'), size=2) +
+  
+  geom_point(aes(x=lower_whisker, y=0.5, color='lower whisker'), size=2) +
+  geom_point(aes(x=upper_whisker, y=0.5, color='upper whisker'), size=2) +
+  
+  
+  labs(title = 'Boxplot distribuzione variabile Peso',
+       x='Peso in Gr',
+       y= 'Y')+
+  
+  
+  scale_color_manual(name = "Statistiche", 
+                     values = c("Media" = "red", "Mediana" = "green", 'Primo quartile' ='blue', 'Terzo quartile'= 'blue', 'lower whisker'= 'black', 'upper whisker'= 'black'))
+
+```
+
+La posizione degli indici visulizzata sul boxplot fa emergere come il 50% delle osservazioni sia concentrato in un range compreso tra 2990 gr e 3620 gr con una media e una mediana praticamente coincidenti, il lower wisker e l'upper whisker calcolati escludendo gli outlairs oscillano tra 2045 e 4565 facendo cadere all'interno del nostro intervallo il 93% dei nostri dati. Da questo primo plottaggio notiamo che gli outlairs e la lunghezza della coda sinistra appera maggiore della lunghezza e degli outlaiers nella coda destra pertanto la distribuzione appare spostata a destra e risulta apparentemente appuntita; per appurare visivamente queste ipotesi andiamo a plottare la distribuzione di densitá.
+
+#### Distribuzione di densitá.
+
+```{r}
+Peso_density <- density(Peso)
+Peso_density_x<- Peso_density$x
+Peso_density_y<- Peso_density$y/max(Peso_density$y)
+
+curva_densita_peso <- plot_ly() %>%
+  add_trace(x = Peso_density_x, y = Peso_density_y, mode = 'lines', fill = 'tozeroy', fillcolor = 'lightblue', line = list(color = 'black', width= 1), name = 'Densità') %>%
+  
+  add_lines(x = c(mean_Peso), y = c(0,max(Peso_density_y)), line = list(color = 'red', dash = 'solid'), name = paste('Media', round(mean_Peso, 2))) %>%
+  
+  add_lines(x = c(median_Peso), y = c(0,max(Peso_density_y)), line = list(color = 'green', dash = 'solid'), name = paste('Mediana', round(median_Peso, 2))) %>%
+  
+  add_lines(x = c(primo_quartile_Peso), y = c(0,max(Peso_density_y)), line = list(color = 'blue', dash = 'solid'), name = paste('1° Quartile', round(primo_quartile_Peso, 2))) %>%
+  
+  add_lines(x = c(terzo_quartile_Peso), y = c(0, max(Peso_density_y)), line = list(color = 'blue', dash = 'solid'), name = paste('3° Quartile', round(terzo_quartile_Peso, 2))) %>%
+  
+  add_lines(x = c(lower_whisker), y = c(0, max(Peso_density_y)), line = list(color = 'black', dash = 'solid'), name = paste('Baffo Inferiore')) %>%
+  
+  add_lines(x = c(upper_whisker), y = c(0, max(Peso_density_y)), line = list(color = 'black', dash = 'solid'), name = paste('Baffo Superiore', round(upper_whisker, 2))) %>%
+  
+  layout(title = 'Curva di Densità del Peso',
+         xaxis = list(title = 'Peso in Grammi'),
+         yaxis = list(title = 'Densità'))
+curva_densita_peso
+```
+
+Come avevamo giá sospettato dal boxplot, la variabile peso ha una coda piú lunga sul lato sinistro e una coda piú corta sul lato destro, la media e la mediana sono praticamente coincidenti, tuttavia tale distrubizione potrebbe creare delle porblematica a causa dei numerosi outlairs presenti al suo interno.
+
+I due grafici successivi hanno lo scopo di otimizzare la visualizzazione degli indici e della curva.
+
+#### Box plot e distribuzione a confronto.
+
+```{r}
+boxplot_peso<-plot_ly(y=Peso, type='box', name="Box")%>%
+  layout(yaxis = list(title='Peso in grammi'))
+
+subplot(boxplot_peso, curva_densita_peso, nrows = 1) %>%
+  layout(title = "Confronto tra Boxplot e Curva di Densità",
+         showlegend = TRUE,
+         legend=list(font=list(size=5)))
+```
+
+#### Grafico metá violino metá boxplot
+
+```{r}
+mezzo_violino_peso<-ggplot(data=dati)+
+  geom_half_boxplot(aes(y=Peso),
+                    side="l", fill='green')+
+  geom_half_violin(aes(y=Peso),
+                   side= 'r', fill='lightblue')+
+  geom_hline(yintercept=mean_Peso,  
+             col='red',      
+             size=0.5) +
+  geom_hline(yintercept=median_Peso,
+             col='green',
+             size=0.5) +
+  geom_hline(yintercept=primo_quartile_Peso,
+             col='blue',
+             size=0.5) +
+  geom_hline(yintercept =terzo_quartile_Peso,
+             col='blue',
+             size=0.5)+
+  geom_hline(yintercept = lower_whisker,
+             col='black',
+             size=0.5)+
+  geom_hline(yintercept = upper_whisker,
+             col='black',
+             size=0.5)+
+  labs(title = 'Boxplot e curva di densitá Peso',
+
+       y= 'Peso in Gr')
+
+mezzo_violino_peso
+```
+
+#### Test normalitá curtosi e skewness
+
+Ora che abbiamo visualizzato graficamente la nostra variabile di risposta, andiamo a saggiare le nostre ipotesi attraverso il test di shapirowilks per saggiare la normalitá della nostra variabile di risposta, e confrontare gli indici di curtosi per la forma e l'assimetria per verificare quello che abbiamo giá visto graficamente.
+
+```{r}
+shapiro.test(Peso)
+moments::skewness(Peso)
+moments::kurtosis(Peso)-3
+```
+
+Purtroppo dal shapiro test é emerso che la nostra variabile di riposta Peso non segue una distribuzione normale; il p-value é praticamente 0 quindi rifiutiamo l'ipotesi nulla di normalitá. Questo andrá ad influire sui residui del nostro modello, valuteremo durante l'analisi dei residui se questo avrá un peso statisticamente rilevante per la soliditá del nostro modello. Gli altri indici confermano le nostre ipotesi iniziali in merito a forma leggermente piú appuntita rispetto a una normale e spostata sulla destra.
+
+#### Saggiamo l'uguaglianza tra la media del peso della popolazione e il campione
+
+Guardando in internet é emerso che il peso medio dei bambini italiani alla nasciata sia di 3300 grammi, andiamo a saggiare l'ipotesi che la media della popolazione non sia statisticamente differente alla media del nostro campione attraverso un t.test. In questo caso il campione dei miei dati é molto elevato quindi grazia al TLC possiamo usare il test di t per i diversi confronti delle medie sia in questo caso che nei casi successivi.
+
+```{r}
+t.test(dati$Peso, mu= 3300, alternative = 'two.sided')
+```
+
+Come possiamo vedere dal test é emerso un P-value con un valore superiore al 0.05 quindi non rifiutiamo l'ipotesi nulla di normalitá, la media del nostro campione non é significativamente diversa dalla media della popolazione; inoltre possiamo osservare che la media del mio campione ricade nell'intervallo di confidenza, questo significa che campionando la popolazione molte volte il 95% dei miei intervalli di confidenza conterrá il valore della media del mio campione; questo, unito al fatto che l'intervallo di confidenza é molto stretto tra 3263.490 e 3304.672 mi fa concludere con un alto grado ci certezza che la media della popolazione 3284.081 si significatiavamente vicina alla media del mio campione.
+
+### Lunghezza.
+
+#### Indici e stime
+
+```{r}
+summary(Lunghezza)
+quantili_lunghezza<-quantile(Lunghezza)
+mean_lunghezza <- mean(Lunghezza)
+median_lunghezza <- median(Lunghezza)
+minimo_lunghezza= min(Lunghezza)
+massimo_Peso= max(Lunghezza)
+primo_quartile_lunghezza=as.numeric(quantili_lunghezza[2])
+terzo_quartile_lunghezza=as.numeric(quantili_lunghezza[4])
+IQR = terzo_quartile_lunghezza- primo_quartile_lunghezza 
+lower_whisker_lunghezza = primo_quartile_lunghezza - 1.5 * IQR
+upper_whisker_lunghezza = terzo_quartile_lunghezza + 1.5 * IQR
+```
+
+#### Distribuzione di densitá.
+
+```{r}
+lunghezza_density <- density(Lunghezza)
+
+lunghezza_density_x<- lunghezza_density$x
+lunghezza_density_y<- lunghezza_density$y/max(lunghezza_density$y)
+
+curva_densita_lunghezza <- plot_ly() %>%
+  add_trace(x =lunghezza_density_x , y =lunghezza_density_y , mode = 'lines', fill = 'tozeroy', fillcolor = 'lightblue', line = list(color = 'black', width= 1), name = 'Densità') %>%
+  
+  add_lines(x = c(mean_lunghezza), y = c(0,max(lunghezza_density_y)), line = list(color = 'red', dash = 'solid'), name = paste('Media', round(mean_lunghezza, 2))) %>%
+  
+  add_lines(x = c(median_lunghezza), y = c(0,max(lunghezza_density_y)), line = list(color = 'green', dash = 'solid'), name = paste('Mediana', round(median_lunghezza, 2))) %>%
+  
+  add_lines(x = c(primo_quartile_lunghezza), y = c(0,max(lunghezza_density_y)), line = list(color = 'blue', dash = 'solid'), name = paste('1° Quartile', round(primo_quartile_lunghezza, 2))) %>%
+  
+  add_lines(x = c(terzo_quartile_lunghezza), y = c(0, max(lunghezza_density_y)), line = list(color = 'blue', dash = 'solid'), name = paste('3° Quartile', round(terzo_quartile_lunghezza, 2))) %>%
+  
+  add_lines(x = c(lower_whisker_lunghezza), y = c(0, max(lunghezza_density_y)), line = list(color = 'black', dash = 'solid'), name = paste('Baffo Inferiore')) %>%
+  
+  add_lines(x = c(upper_whisker_lunghezza), y = c(0, max(lunghezza_density_y)), line = list(color = 'black', dash = 'solid'), name = paste('Baffo Superiore', round(upper_whisker_lunghezza, 2))) %>%
+  
+  layout(title = 'Lunghezza del bambino',
+         xaxis = list(title = 'Lunghezza in mm'),
+         yaxis = list(title = 'Densità'))
+summary(Lunghezza)
+curva_densita_lunghezza
+```
+
+#### Box plot e distribuzione a confronto.
+
+```{r}
+boxplot_lunghezza<-plot_ly(y=Lunghezza, type='box', name="Box")%>%
+  layout(yaxis = list(title='Lunghezza in mm'))
+
+subplot(boxplot_lunghezza, curva_densita_lunghezza, nrows = 1) %>%
+  layout(title = "Confronto tra Boxplot e Curva di Densità",
+         showlegend = TRUE,
+         legend=list(font=list(size=5)))
+```
+
+```{r}
+mezzo_violino_lunghezza<-ggplot(data=dati)+
+  geom_half_boxplot(aes(y=Lunghezza),
+                    side="l", fill='green')+
+  geom_half_violin(aes(y=Lunghezza),
+                   side= 'r', fill='lightblue')+
+  geom_hline(yintercept=mean_lunghezza,  
+             col='red',      
+             size=0.5) +
+  geom_hline(yintercept=median_lunghezza,
+             col='green',
+             size=0.5) +
+  geom_hline(yintercept=primo_quartile_lunghezza,
+             col='blue',
+             size=0.5) +
+  geom_hline(yintercept =terzo_quartile_lunghezza,
+             col='blue',
+             size=0.5)+
+  geom_hline(yintercept = lower_whisker_lunghezza,
+             col='black',
+             size=0.5)+
+  geom_hline(yintercept = upper_whisker_lunghezza,
+             col='black',
+             size=0.5)
+
+mezzo_violino_lunghezza
+```
+
+Confrontandola con il peso qui ci troviamo nella medesima situazione una coda sinistra molto pronunciata e uno spostamento della curva maggiormente accentuato sul lato destro, vediamo gli indici precedentemente calcolati sul Peso
+
+```{r}
+moments::skewness(Lunghezza)
+moments::kurtosis(Lunghezza)-3
+```
+
+Come ci aspettavamo l'asimettria é negativa é maggiormente pronunciata rispetto al peso, e possiamo notare come anche la curtosi indichi una curva maggiormente appuntita rispetto al Peso.
+
+### Cranio.
+
+#### Indici e stime
+
+```{r}
+summary(Cranio)
+quantili_cranio<-quantile(Cranio)
+mean_cranio <- mean(Cranio)
+median_cranio <- median(Cranio)
+minimo_cranio= min(Cranio)
+massimo_cranio= max(Cranio)
+primo_quartile_cranio=as.numeric(quantili_cranio[2])
+terzo_quartile_cranio=as.numeric(quantili_cranio[4])
+IQR = terzo_quartile_cranio- primo_quartile_cranio 
+lower_whisker_cranio = primo_quartile_cranio - 1.5 * IQR
+upper_whisker_cranio = terzo_quartile_cranio + 1.5 * IQR
+```
+
+#### Distribuzione di densitá.
+
+```{r}
+cranio_density <- density(Cranio)
+cranio_density_x<- cranio_density$x
+cranio_density_y<- cranio_density$y/max(cranio_density$y)
+
+curva_densita_cranio <- plot_ly() %>%
+  add_trace(x = cranio_density_x, y = cranio_density_y, mode = 'lines', fill = 'tozeroy', fillcolor = 'lightblue', line = list(color = 'black', width= 1), name = 'Densità') %>%
+  
+  add_lines(x = c(mean_cranio), y = c(0,max(cranio_density_y)), line = list(color = 'red', dash = 'solid'), name = paste('Media', round(mean_cranio, 2))) %>%
+  
+  add_lines(x = c(median_cranio), y = c(0,max(cranio_density_y)), line = list(color = 'green', dash = 'solid'), name = paste('Mediana', round(median_cranio, 2))) %>%
+  
+  add_lines(x = c(primo_quartile_cranio), y = c(0,max(cranio_density_y)), line = list(color = 'blue', dash = 'solid'), name = paste('1° Quartile', round(primo_quartile_cranio, 2))) %>%
+  
+  add_lines(x = c(terzo_quartile_cranio), y = c(0, max(cranio_density_y)), line = list(color = 'blue', dash = 'solid'), name = paste('3° Quartile', round(terzo_quartile_cranio, 2))) %>%
+  
+  add_lines(x = c(lower_whisker_cranio), y = c(0, max(cranio_density_y)), line = list(color = 'black', dash = 'solid'), name = paste('Baffo Inferiore')) %>%
+  
+  add_lines(x = c(upper_whisker_cranio), y = c(0, max(cranio_density_y)), line = list(color = 'black', dash = 'solid'), name = paste('Baffo Superiore', round(upper_whisker_cranio, 2))) %>%
+  
+  layout(title = 'Curva di Densità del cranio',
+         xaxis = list(title = 'Diametro in mm'),
+         yaxis = list(title = 'Densità'))
+curva_densita_cranio
+```
+
+#### Box plot e distribuzione a confronto.
+
+```{r}
+boxplot_cranio<-plot_ly(y=Cranio, type='box', name="Box")%>%
+  layout(yaxis = list(title='Diametro in mm'))
+
+subplot(boxplot_cranio, curva_densita_cranio, nrows = 1) %>%
+  layout(title = "Confronto tra Boxplot e Curva di Densità",
+         showlegend = TRUE,
+         legend=list(font=list(size=5)))
+```
+
+```{r}
+mezzo_violino_cranio<-ggplot(data=dati)+
+  geom_half_boxplot(aes(y=Cranio),
+                    side="l", fill='green')+
+  geom_half_violin(aes(y=Cranio),
+                   side= 'r', fill='lightblue')+
+  geom_hline(yintercept=mean_cranio,  
+             col='red',      
+             size=0.5) +
+  geom_hline(yintercept=median_cranio,
+             col='green',
+             size=0.5) +
+  geom_hline(yintercept=primo_quartile_cranio,
+             col='blue',
+             size=0.5) +
+  geom_hline(yintercept =terzo_quartile_cranio,
+             col='blue',
+             size=0.5)+
+  geom_hline(yintercept = lower_whisker_cranio,
+             col='black',
+             size=0.5)+
+  geom_hline(yintercept = upper_whisker_cranio,
+             col='black',
+             size=0.5)
+
+mezzo_violino_cranio
+```
+
+Anche qui possiamo notare un andamento simile alle precedenti distribuzioni estraiamo gli idici.
+
+```{r}
+moments::skewness(Cranio)
+moments::kurtosis(Cranio)-3
+```
+
+## Confronti fra il Peso e le altre variabili Numeriche continue.
+
+### Confronto Peso Lunghezza
+
+```{r}
+ggplot(data=dati)+
+  geom_point(aes(x=Lunghezza, y=Peso),position= 'jitter')+
+  geom_point(data = subset(dati, Lunghezza == 315 & Peso == 4370), aes(x = Lunghezza, y = Peso), color = "red", size = 2)+
+  labs(x='Lunghezza mm', y= 'Peso')+
+  theme_minimal()
+  cor(Lunghezza,Peso)
+```
+
+lo Scatter plot rileva visivamente una correlazione di tipo lineare tra la variabile peso e la variabile Lunghezza notiamo che la nuvola di punti nella parte sinistra del grafico presenta un leggero andamento a curva, mentre sulla parte destra del grafico i punti sono piú concentrati e piú spaiati, non "abbracciati" intorno a un'ipotetica retta passente in mezzo a loro. In generale possiamo notare una certa correlazione di tipo lineare con la varaibile peso confermata da un indice di correlazione di Pearson di 0.79 quindi positivo piú la lunghezza del bambino cresce piú cresce anche il suo peso. ATTENZIONE: c'é quel punto in alto a sinistra che ho colorato di rosso, é un punto particolarmente distante dalla nuvola di punti, quel punto probabilmente creerá dei problemi successivi durante lo studio dei residui.
+
+### Confronto Peso Cranio
+
+```{r}
+ggplot(data=dati)+
+  geom_point(aes(x=Cranio, y=Peso),position= 'jitter')+
+  labs(x='Dimensione cranio mm', y= 'Peso')+
+  geom_point(data = subset(dati, Cranio == 374 & Peso == 4370), aes(x = Cranio, y = Peso), color = "red", size = 2)+
+  theme_minimal()
+  cor(Cranio,Peso)
+```
+
+Qui ci troviamo nella medesima situazione della Lunghezza con una nuvola di punti piú contentrata sul lato destro rispetto al lato sinistro. Notiamo sempre la presenza di un andamento dei punti sulla parte sinistra del grafico non perfettamente lineare ma che segue una leggera curva. La correlazione positiva viene oltresi confermata da un indice di correlazione di Pearson di 0.70.La dispersione dei punti aumenta progressivamente verso la parte destra della curva.
+
+Proviamo ora a plottare tutte la matrice di correlazione con i grafici per avere una visione di insieme della situazione.
+
+```{r}
+pairs(dati[,c('Lunghezza','Cranio', 'Peso')],upper.panel=panel.smooth, lower.panel = panel.cor)
+```
+
+Le nostre osservazione sui singoli scatterplot vengono confermate dalla tabella di correlazione, cosi anche come i rispettivi coefficenti calcolati, notando in ordine di forza la seguente scala: Peso-Lunghezza(0.80), Peso-Cranio(0.70).
+
+Possiamo notare come le linee delle rispettive nuvole di punti non siano proprio dritte, queste piccole distorsioni possono essere ''catturate'' dal nostro modello attraverso la correzione delle nostre variabili di risposta. Procediamo con l'analisi delle altre variabili la creazione di un modello con i dati che abbiamo poi andremo a selezionare le variabili significative per il nostro modello e successivamente proveremo a migliorarlo applicando delle trasformazioni.
+
+### Confronto Peso Anni Madre
+
+```{r}
+max(Anni.madre)
+min(Anni.madre)
+ggplot(data=dati, aes(x = Anni.madre)) +
+  geom_histogram(aes(y = ..density..), bins = 23, fill = "lightgray", color = "black", alpha = 0.5,binwidth = 1) +
+  geom_density(color = "blue", size = 0.5) +
+  labs(title = "Istogramma con Densità anni madre", x = "Anni madre", y = "Densità") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(data=dati)+
+  geom_point(aes(x=Anni.madre, y=Peso),position= 'jitter')+
+  labs(x='Anni madre', y= 'Peso')+
+  geom_point(data = subset(dati, Anni.madre == 35 & Peso == 4370), aes(x = Anni.madre, y = Peso), color = "red", size = 2)+
+  theme_minimal()
+  cor(Anni.madre,Peso)
+  
+  min(Anni.madre)
+  max(Anni.madre)
+```
+
+Oltre alla presenza di due outlairs molto improbabili visto che il dato registrato é un'etá della madre compresa tra 0 e 1, quindi molto probabilmente sono degli errori di raccolta del dato, notiamo come questa variabile non segua minimamente una linearitá, e che la correlazione é prossima allo zero per questo motivo questa variabile sará molto probabilmente da escludere dal nostro modello.
+
+Andiamo a sostituire i valori sbagliati con la mediana dei dati calcolata senza prendere in considerazione i valori 0 e 1.
+
+```{r}
+mediana_anni<- median(dati$Anni.madre[dati$Anni.madre != 0 & dati$Anni.madre!= 1], na.rm=TRUE)
+
+dati$Anni.madre[dati$Anni.madre == 0 | dati$Anni.madre == 1] <- mediana_anni
+```
+
+### Confronto Peso Gestazione
+
+```{r}
+max(Gestazione)
+min(Gestazione)
+43-25
+ggplot(data=dati, aes(x = Gestazione)) +
+  geom_histogram(aes(y = ..density..), bins = 18, fill = "lightgray", color = "black", alpha = 0.5,binwidth = 1) +
+  geom_density(color = "blue", size = 0.5) +
+  labs(title = "Istogramma con Densità Sett.Gestazione", x = "Settimane di Gestazione", y = "Densità") +
+  theme_minimal()
+```
+
+Possiamo notare come nell'istogramma come nella distribuzione di densitá della variabile gestazione possiamo notare 5 picchi che corrispondono ai picchi di frequenza relative alle rispettive settimane di gestazione, mettendo in correlazione il peso alle settimane di gestazione dovremmo vedere una nuvola di punti progressivamente piú densa dalla 35 esima settimana fino al picco massimo alla 40esima settimana che fa registrare il numero di presenze piú alto.
+
+```{r}
+table(Gestazione)
+```
+
+Questo é confermato anche dalla visuaalizzazione delle frequenze assolute dove vediamo un andamento crescente fino al massimo di 741 bambini alla 40 settimana di gestazione.
+
+```{r}
+ggplot(data=dati)+
+  geom_point(aes(x=Gestazione, y=Peso),position= 'jitter')+
+  geom_point(data = subset(dati, Gestazione == 38 & Peso == 4370), aes(x = Gestazione, y = Peso), color = "red", size = 2)+
+  labs(x='Gestazione', y= 'Peso')+
+  theme_minimal()
+  cor(Gestazione,Peso)
+```
+
+Possiamo notare come la Gestazione segua un andemento lineare, anche in questo caso notiamo una densitá di punti maggiore sul lato destro con una dispersione dei punti maggiore considerando un'ipotetica retta passante nel mezzo; notiamo inoltre, anche in questo caso che l'andamento non é perfettamente dritto ma é leggermente curvo.
+
+```{r}
+ggplot(data=dati)+
+  geom_point(aes(x=Gestazione, y=Peso),position= 'jitter')+
+  geom_point(data = subset(dati, Gestazione == 38 & Peso == 4370), aes(x = Gestazione, y = Peso), color = "red", size = 2)+
+  labs(x='Gestazione', y= 'Peso')+
+  theme_minimal()
+  cor(Gestazione,Peso)
+```
+
+Possiamo notare come la Gestazione segua un andemento lineare, anche in questo caso notiamo una densitá di punti maggiore sul lato destro con una dispersione dei punti maggiore considerando un’ipotetica retta passante nel mezzo; notiamo inoltre, anche in questo caso che l’andamento non é perfettamente dritto ma é leggermente curvo.
+
+```{r}
+pairs(dati[,c('Lunghezza','Cranio','Gestazione','Peso' )],upper.panel=panel.smooth, lower.panel = panel.cor)
+```
+
+Come possiamo notare dalla matrice di correlazione le nostre osservazioni sulla variabile gestazione sono fondate notiamo una correlazione positiva di 0.59 positiva. Oltresí possiamo notare anche un andamento curvo della linea non nettamente dritta. Questa carattersitica ci porterá successivamente a valutare una possibile correzione della varaibile Gestazione per migliorare la soliditá del nostro modello.
+
+## Analisi delle variabile qualitative categoriali
+
+### Tipo di parto
+
+```{r}
+table(Tipo.parto)
+ggplot(data = dati) +
+  geom_bar(aes(x = Tipo.parto, fill = Tipo.parto), stat = 'count', color = 'black') +
+  scale_fill_manual(values = c("Nat" = "green", "Ces" = "blue")) +
+  labs(
+    title = 'Tipologia di parto',
+    x = 'Tipo di Parto',
+    y = 'Frequenze Assolute',
+    fill = 'Tipo di Parto'
+  )
+```
+
+Possiamo notare graficamente che il numero dei bambini nati Naturalmente (1772)é notevolemente maggiore dei bambini nati con il parto Cesario (728).
+
+```{r}
+box_plot_ces<-plot_ly(data= dati[dati$Tipo.parto=='Ces',],
+                      y=~Peso,
+                      type='box',
+                      name='Cesarei'
+                      )
+
+box_plot_nat<-plot_ly(data= dati[dati$Tipo.parto=='Nat',],
+                      y=~Peso,
+                      type='box',
+                      name='Naturali'
+                      )
+
+confronto_nat_ces<- subplot(box_plot_nat, box_plot_ces, shareY = TRUE)%>%
+  layout(title='Peso Parti Cesarei e Naturali',
+         yaxis= list(title='Peso in grammi'))
+confronto_nat_ces
+```
+
+Notiamo che tra i due gruppi non sembra esserci una differenza significativa per tanto, non avrá molto senso tenere questa variabile all'interno del nostro modello di regressione in quanto questa varaibile non fornisce particoli informazioni utili e rischia di rendere particolarmente sensibile il nostro modello alle variazioni. Andiamo ad appurare la cosa con un test t per dati non appaiati.
+
+```{r}
+t.test(data=dati,
+       Peso~Tipo.parto,
+       paired = F,
+       pool.sd = T,
+       p.adjust.method = 'bonferroni')
+```
+
+Come avevamo sospettato dall'analisi del boxplot il nostro test riporta un valore di 0.53 nettamente superiore al valore soglia di 0.05 per tanto non rifiutiamo l'ipotesi nulla di uguaglianza tra medie, concludendo che non ci sia una differenza significativa tra i gruppi. Di conseguenza ci aspetteremo nel modello un beta di regressione prossimo a 0 e quindi non significativo per il nostro modello.
+
+### Ospedale
+
+```{r}
+summary(dati)
+```
+
+```{r}
+table(Ospedale)
+ggplot(data = dati) +
+  
+  geom_bar(aes(x = Ospedale, fill = Ospedale),stat='count', color = 'black') +
+  
+  scale_fill_manual(values = c("osp1" = "green", "osp2" = "blue", 'osp3'='red')) +
+  
+  
+  
+  labs(
+    title = 'Frequenza ospedali',
+    x = 'ospedale',
+    y = 'Frequenze Assolute',
+    fill = 'nome ospedale'
+  )
+```
+
+```{r}
+box_plot_osp1<-plot_ly(data= dati[dati$Ospedale=='osp1',],
+                      y=~Peso,
+                      type='box',
+                      name='osp1')
+
+box_plot_osp2<-plot_ly(data= dati[dati$Ospedale=='osp2',],
+                      y=~Peso,
+                      type='box',
+                      name='osp2')
+
+box_plot_osp3<-plot_ly(data=dati[dati$Ospedale=='osp3',],
+                       y=~Peso,
+                       type='box',
+                       name='osp3')
+
+confronto_ospedali<- subplot(box_plot_osp1, box_plot_osp2, box_plot_osp3, shareY = TRUE)%>%
+  layout(title='Peso in funzione degli ospedali',
+         yaxis= list(title='Peso in grammi'))
+confronto_ospedali
+```
+
+```{r}
+pairwise.t.test(Peso, Ospedale, paired = F, pool.sd = T, p.adjust.method = 'bonferroni')
+```
+
+Dal confronto tra i boxplot e il t.test emerge che non vi sia una differenza significativa fra le medie del peso divisi per ospedale in cui sono nati, questo probabilmente é dovuto al fatto che gli ospedali appertengono alla stessa zona di interesse non essendoci particolari variazioni naturalmente questa é solo una supposozione che dovrebbe essere saggiata.
+
+Il test riporta un valore di 1, 0.33, 0.36 nettamente superiore al valore soglia di 0.05 per tanto accettiamo l'ipotesi nulla di uguaglianza tra medie, concludendo che non ci sia una differenza significativa tra i diversi ospedali e il peso del bambino.
+
+Di conseguenza ci aspetteremo nel modello un beta di correlazione prossimo a 0 e quindi non significativo per il nostro modello.
+
+#### Ci sono piú parti cesari in alcuni ospedali?
+
+Per verificare questa ipotesi devo utilizzare il test del chi quadro trattandosi di frequenze
+
+```{r}
+tabella_osp_parti<- table(dati$Ospedale,dati$Tipo.parto)
+test.indipendenza<-chisq.test(tabella_osp_parti)
+test.indipendenza
+```
+
+Dal test emerge un p-value alto per tanto si accetta l'ipotesi nulla di indipendenza delle variabili, di conseguenza é lecito affermare che la differenza osservata nelle frequenze dei parti cesari e naturali tra i diversi ospedali é dovuta al caso.
+
+### Fumatrici
+
+```{r}
+table(Fumatrici)
+  
+ggplot(data = dati) +
+  
+  geom_bar(aes(x = Fumatrici,fill=Fumatrici),
+           stat='count',
+           color ='black',
+           ) +
+  
+  scale_fill_manual(values = c("NO" = "green",'SI'='red'))+
+  labs(x = "Fumatrici", y = "Conteggio", fill = "Fumatrici") +
+  theme_minimal()
+
+  
+  
+ 
+```
+
+Notiamo come ci sia una netta maggioranza di donne non fumatrici (2396) rispetto alle fumatrici(104).
+
+### Sesso
+
+```{r}
+table(Sesso)
+ggplot(data = dati) +
+  geom_bar(aes(x = Sesso, fill = Sesso), stat = 'count', color = 'black') +
+  scale_fill_manual(values = c("M" = "blue", "F" = 'pink')) +
+  labs(
+    title = 'Frequenza Sesso',
+    x = 'Genere',
+    y = 'Frequenze Assolute',
+    fill = 'Sesso'
+  )
+```
+
+Notiamo come la distribuzione tra Maschi e Femmine sia equilibrata se pur con piccolissima superioritá delle Femmine (1256) contro (1244) Maschi.
+
+## Confronti Fra Peso e variabili Qualitative Discrete.
+
+### Confronto tra Peso e Ospedale
+
+```{r}
+box_plot_osp1<-plot_ly(data= dati[dati$Ospedale=='osp1',],
+                      y=~Peso,
+                      type='box',
+                      name='osp1')
+
+box_plot_osp2<-plot_ly(data= dati[dati$Ospedale=='osp2',],
+                      y=~Peso,
+                      type='box',
+                      name='osp2')
+
+box_plot_osp3<-plot_ly(data=dati[dati$Ospedale=='osp3',],
+                       y=~Peso,
+                       type='box',
+                       name='osp3')
+
+confronto_ospedali<- subplot(box_plot_osp1, box_plot_osp2, box_plot_osp3, shareY = TRUE)%>%
+  layout(title='Peso in funzione degli ospedali',
+         yaxis= list(title='Peso in grammi'))
+confronto_ospedali
+```
+
+```{r}
+pairwise.t.test(Peso, Ospedale, paired = F, pool.sd = T, p.adjust.method = 'bonferroni')
+```
+
+Dal confronto tra i boxplot e il t.test emerge che non vi sia una differenza significativa fra le medie del peso divisi per ospedale in cui sono nati, questo probabilmente é dovuto al fatto che gli ospedali appertengono alla stessa zona di interesse non essendoci particolari variazioni naturalmente questa é solo una supposizione che dovrebbe essere saggiata.
+
+Il test riporta un valore di 1, 0.33, 0.36 nettamente superiore al valore soglia di 0.05 per tanto accettiamo l'ipotesi nulla di uguaglianza tra medie, concludendo che non ci sia una differenza significativa tra i diversi ospedali e il peso del bambino.
+
+Di conseguenza ci aspetteremo nel modello un beta di correlazione prossimo a 0 e quindi non significativo per il nostro modello.
+
+### Confronto tra Peso e Tipo di parto
+
+```{r}
+box_plot_ces<-plot_ly(data= dati[dati$Tipo.parto=='Ces',],
+                      y=~Peso,
+                      type='box',
+                      name='Cesarei'
+                      )
+
+box_plot_nat<-plot_ly(data= dati[dati$Tipo.parto=='Nat',],
+                      y=~Peso,
+                      type='box',
+                      name='Naturali'
+                      )
+
+confronto_nat_ces<- subplot(box_plot_nat, box_plot_ces, shareY = TRUE)%>%
+  layout(title='Peso Parti Cesarei e Naturali',
+         yaxis= list(title='Peso in grammi'))
+confronto_nat_ces
+```
+
+Notiamo che tra i due gruppi non sembra esserci una differenza significativa per tanto, non avrá molto senso tenere questa variabile all'interno del nostro modello di regressione in quanto questa varaibile non fornisce particoli informazioni utili e rischia di rendere particolarmente sensibile il notro modello alle variazioni. Andiamo ad appurare la cosa con un test t per dati non appaiati
+
+```{r}
+t.test(data=dati,
+       Peso~Tipo.parto,
+       paired = F,
+       pool.sd = T,
+       p.adjust.method = 'bonferroni')
+```
+
+Come avevamo sospettato dall'analisi del boxplot il nostro test riporta un valore di 0.53 nettamente superiore al valore soglia di 0.05 per tanto non rifiutiamo l'ipotesi nulla di uguaglianza tra medie, concludendo che non ci sia una differenza significativa tra i gruppi. Di conseguenza ci aspetteremo nel modello un beta di regressione prossimo a 0 e quindi non significativo per il nostro modello.
+
+### Confronto tra Peso e Sesso
+
+```{r}
+box_plot_M<-plot_ly(data= dati[dati$Sesso=='M',],
+                      y=~Peso,
+                      type='box',
+                      name='Maschi'
+                      )
+
+box_plot_F<-plot_ly(data= dati[dati$Sesso=='F',],
+                      y=~Peso,
+                      type='box',
+                      name='Femmine'
+                      )
+
+confronto_M_F<- subplot(box_plot_M, box_plot_F, shareY = TRUE)%>%
+  layout(title='Peso in funzione del Sesso',
+         yaxis= list(title='Peso'))
+confronto_M_F
+```
+
+```{r}
+t.test(data=dati,
+       Peso~Sesso,
+       paired = F,
+       pool.sd = T,
+       p.adjust.method = 'bonferroni')
+```
+
+Come possiamo notare sia dal livello di p-value molto basso sai dal boxplot la variabile sesso é quella che ha fatto resgistrate una differenza significativa tra i due gruppi. Per tanto ci aspetteremo un Beta di regressione significativo e sará molto importante includere questa varaibile all'interno dle nostro dataset.
+
+### Confronto tra Peso e Fumatrici
+
+Andiamo a plottare prima di tutto il boxplot condizionato del peso con la variabile qualitativa Fuamtrici.
+
+```{r}
+box_plot_NO<-plot_ly(data= dati[dati$Fumatrici=='NO',],
+                      y=~Peso,
+                      type='box',
+                      name='NO'
+                      )
+
+box_plot_SI<-plot_ly(data= dati[dati$Fumatrici=='SI',],
+                      y=~Peso,
+                      type='box',
+                      name='SI'
+                      )
+
+confronto_NO_SI<- subplot(box_plot_NO, box_plot_SI, shareY = TRUE)%>%
+  layout(title='Peso in funzione del fumo',
+         yaxis= list(title='Peso'))
+confronto_NO_SI
+```
+
+```{r}
+t.test(data=dati,
+       Peso~Fumatrici,
+       paired = F,
+       pool.sd = T,
+       p.adjust.method = 'bonferroni')
+```
+
+Qui cé da fare un ragionamento a parte a mio parere possiamo notare come sia dal boxplot sia dal test non emerge una differenza significativa tra i gruppi di fumatrici e i gruppi di non fumatrici tuttavia, il numero delle fumatrici seppur notevolmente piú basso ha fatto registrare una piccola differenza se pur non statisticamente significativa, é plausibile sospettare che se avessimo un campione equilibrato tra fumatrici e non fumatrici la differenza di peso del neonato potrebbe essere influenzata dal vizio del fumo; peró attenendoci ai dati la differenza tra i gruppi non é statisticamente importante.
+
+## Analisi delle variabili quantitative discrete
+
+### N.gravidanze e Confronto con Peso
+
+```{r}
+ggplot(data=dati)+
+  geom_point(aes(x=N.gravidanze, y=Peso),position= 'jitter')+
+  geom_point(data = subset(dati, N.gravidanze == 1 & Peso == 4370), aes(x = N.gravidanze, y = Peso), color = "red", size = 2)+
+  labs(x='N.gravidanze', y= 'Peso')+
+  theme_minimal()
+  cor(N.gravidanze,Peso)
+```
+
+Questo scatter mostra come la nostra variabile N.Gravidenza non segua un andamento lineare.
+
+Dopo aver dato un'occhiata generale alle variabili concludiamo l'analisi plottando la matrice di correlazione tra tutte le variabili numeriche continue e discrete per vedere quali sono quelle che hanno una correlazione maggiore. Non plotto quelle qualitative perché non avrebbe molto senso visto che si andrebbero a visualizzare dei grafici pressocché piatti la loro analisi come abbiamo visto in precedenza deve essere fatta con boxplot e confronto tra medie dei gruppi con il t.di student in caso di normalitá della variabile quantitativa oppure attraverso il wilcox test se la variabile non é distribuita normalmente.
+
+```{r}
+pairs(dati[,c('Anni.madre', 'N.gravidanze', 'Gestazione','Lunghezza','Cranio', 'Peso', 'gravidanze_classi')],upper.panel=panel.smooth, lower.panel = panel.cor)
+```
+
+Da questa analisi sugli indici e sui grafici delle varaibili possiamo supporre che le variabili maggiormente indicati per il nostro modello di regressione saranno:
+
+VALIDE:
+
+DIAMENTRO DEL CRANIO, LUNGHEZZA DEL BAMBINO, SESSO DEL BAMBINO E SETTIMANE DI GESTAZIONE.
+
+NON VALIDE:
+
+FUMATRICI, ETÁ DELLA MADRE, NUMERO DI GRAVIDANZE, TIPO PARTO, OSPEDALE.
+
+Andiamo adesso a creare il nostro primo modello di regressione e vediamo progressivamente se le nostre supposizioni vengono confermate e come possiamo mogliorare il modello andando a selezionare le variabili da mantenere passo passo.
+
+## Creazione del modello
+
+andiamo a togliere l'esperimento fatto con il numero di gravidanze e procediamo con la creazione e l''analisi del modello.
+
+```{r}
+dati <- dati %>%
+  select(-gravidanze_classi )
+```
+
+```{r}
+summary(dati)
+str(dati)
+```
+
+```{r}
+mod1<- lm(Peso~., dati  )
+summary(mod1)
+```
+
+Analizziamo il risultato; il coefficente tutto a sinistra é un P-value che indica la potenza di correlazione dei diversi regressori un p_value sopra la soglia di 0.05 indica una correlazione bassa e quindi non porterá informazioni al nostro modello. Come possiamo vedere ci sono delle variabili che, come ci aspettavamo, presentano una significativitá molto alta e queste variabili sono: GESTAZIONE, LUNGHEZZA, CRANIO, SESSO.
+
+Le variabili caratterizzate da un P-Value alto saranno le variabili che dovremmo andare a togliere in quanto non porteranno informazioni utili al nostro modello, stando attenti naturlamente al valore di Adjusted R-squared: 0.7278; questo valore indica il livello di varianza che il nostro modello riesce ad intercettare dei dati, in sostanza (in termini percentuali) quanta varianza dei nostri dati il modello riesce a spiegare, piú é alto questo valore meglio sará per il nostro modello. Tuttavia bisogna fare un piccolo inciso, DOBBIAMO preferire modelli piú semplici con meno variabili é chiaro che se noi aumentiamo il numero di variabili presenti all'interno del nostro modello il modello sará piú performante (R maggiore) perché andremo a vincolare maggiormente il nostro modello, ma troppe variabili portano al rischio di overfitting, il nostro modello sará troppo legato dai nostri dati e non riuscirá piú a prevedere in maniera ottimale con nuove informazioni distanti dai dati su cui é stato creato. Quindi l'abilitá risiederá nel gestire l'aggiunta e l'eleminazione delle variabili, cercando di mantenere il giusto equilibrio tra R e variabili che andiamo ad insierire. la colonna Etimate indica quanto varia la variabile se aumenta la nostra variabile di risposta, utile per capire se dal punto di vista del business la variazione é influente, non é detto che una variazione importante dal punto di vista statistico avrá un'influenza particolarmente rilevante sul dominio di interesse.
+
+Avevamo ipotizzato anche quelle potenzialmente da scartare: FUMATRICI, ANNI MADRE.
+
+Quelle 'sospette' che dai grafici e dai test sembravano non dover esser significative sono: N.GRAVIDANZE, TIPO.PARTO, TIPO OSPEDALE.
+
+Andiamo per esclusione partiamo con eliminare le prime due variabili e vediamo cosa succede.
+
+```{r}
+mod2<-update(mod1, ~. -Fumatrici)
+summary(mod2)
+```
+
+Come possiamo vedere i valori sono praticamente rimasti gli stessi con un R-squared immutato quindi la variabile effettivamente non era significativa, procediamo col togliere gli anni della madre.
+
+```{r}
+mod3<-update(mod2, ~. -Anni.madre)
+summary(mod3)
+```
+
+Anche in questo caso possiamo notare come la rimozione degli anni della madre non abbia influito negativamente sul nostro modello anzi elimando due variabili l'R-square non é diminuito. Ora proviamo ad eleminare la variabile ospedale che era una variabile che dall'analisi non era emersa come significativa e che invece dal modello é proprio al limite con un valore di 0.033.
+
+```{r}
+mod4<-update(mod3, ~. -Ospedale)
+summary(mod4)
+```
+
+Possiamo notare come la variabile se pur rimossa ha fatto variare in maniera minima il valore dell'R- square, preferendo un modello con meno variabili rispetto a un modello con un numero eccessivo di variabili possiamo sacrificare piccole variazione di R se questo vuol dire rimuovere intere variabili dal nostro modello. (Rasoio di okkam).
+
+Visto che l'analisi dei dati iniziale sembra ci stia portando sulla giusta strada continuiamo a rimuovere le variabili che dai grafici e dagli indici sembravano non significative e vediamo come reagisce il nostro modello procederó di seguito a rimuovere le restanti variabili: TIPO PARTO e N.GRAVIDANZE.
+
+```{r}
+mod5<-update(mod4, ~. -Tipo.parto)
+summary(mod5)
+```
+
+Come nel caso precedente possiamo notare l'Rsquare non sia cambiato se non in maniera minima e il nostro modello si é liberato di un'atra variabile senza inficiare sulle altre.
+
+```{r}
+mod4<-update(mod5, ~. -N.gravidanze)
+summary(mod4)
+```
+
+Il modello 4 é stato un pó un azzardo, nel senso il N. di gravidanze risultava significativo al limite del valore di 0.05 tuttavia dai grafici e dalla matrice di correlazione non risultava particolarmente legato alla variabile di risposta, notiamo infatti che R-squared non é diminuito in maniera considerevole. La previsione prevede l'inserimento anche del numero delle gravidanze quindi utilizzeró il mod5.
+
+Andiamo ad appurare il con un test VIF che non vi sia multicollinearitá tra le variabili indipendenti, é importante che questo valore sia inferiore a 5, la multicollinearitá tra variabili indipendenti puó complicare l'interpretazione delle relazioni con la variabile dipendente.
+
+```{r}
+vif(mod5)
+```
+
+Ottimo il modello ha superato il VIF procediamo con interazioni o andamenti particolari.
+
+## Interazioni o andamenti particolari
+
+In un 'analisi a parte ho provato a dividere in classi le settimane di gestazione e il numero di gravidanze notando nei bloxplot condizionati col peso un andamento particolare, valutiamo se unendo l'iterazione di queste due variabili abbiamo un cambiamento nel nostro modello 5.
+
+```{r}
+mod6<- lm(Peso ~ N.gravidanze * Gestazione + Lunghezza + Cranio + Sesso, data = dati)
+summary(mod6)
+summary(mod5)
+```
+
+Notiamo come l'interazione non abbia fatto rilevare un cambiamento particolare in termini di adjusted r square, inlotre il pvalue alto indica che non influisce sul modello in generale quindi questa modifica é da escludere.
+
+Ora proviamo a dare un'altra occhiata alla matrice di correlazione delle variabile numeriche continue e discrete
+
+```{r}
+pairs(dati[,c('Lunghezza','Cranio','Gestazione','Peso' )],upper.panel=panel.smooth, lower.panel = panel.cor)
+```
+
+Possiamo notare che specialmente lunghezza e gestazione non sono proprio lineari ma hanno un andamento curvo, proviamo a intercettare questa "anomalia" modificando le nostre variabili regressore aggiungendo un termine quadratico alla regressione. Procediamo inserendo questo cambiamento uno alla volta.
+
+```{r}
+mod7<- lm(Peso ~ N.gravidanze + Gestazione + I(Gestazione^2) + Lunghezza + Cranio + Sesso, data = dati)
+
+summary(mod7)
+```
+
+```{r}
+mod8<-lm(Peso ~ N.gravidanze + Gestazione + Lunghezza + I(Lunghezza^2) + Cranio + Sesso, data = dati)
+summary(mod8)
+```
+
+```{r}
+mod7_8<- lm(Peso ~ N.gravidanze + Gestazione + I(Gestazione^2) + Lunghezza + I(Lunghezza^2) + Cranio + Sesso, data = dati)
+summary(mod7_8)
+summary(mod5)
+```
+
+```{r}
+vif(mod8)
+```
+
+```{r}
+anova(mod5,mod7_8)
+```
+
+```{r}
+BIC(mod1,mod2,mod3,mod4,mod5,mod6,mod7,mod8, mod7_8)
+```
+
+```{r}
+summary(mod5)
+summary(mod7_8)
+```
+
+Il test Bic conferma che il mod7_8 é i l modello con un risultato migliore, prima peró non dobbiamo dimenticarci di saggiare l'assunzione di non correlazione tra le variabili regressore quindi facciamo un test VIF per verifica; nel capitolo successivo analizzaremo i residui del nostro modello che come dicevamo all'inizio molto probabilmente avranno dei problemi e saranno proprio loro a dirci quanto affidabile sará il nostro modello.
+
+```{r}
+vif(mod7_8)
+```
+
+Come possiamo notare dal Vif é emersa una multicollinearitá alta tra le variabili e il loro effetto, questo tuttavia non é un problema. Il mod7_8 risulta il modello piú performente, tuttavia possiamo affermare che abbiamo ottenuto questi risultati inserendo all'interno del nostro modello due variabili in piú amentando le prestazioni di poco piú di 0.01; visto il lieve aumento in termini di prestazioni conviene utilizzare un modello con meno variabili di conseguenza scegliamo il modello 5.
+
+## Analisi dei residui.
+
+### modello 5
+
+```{r}
+par(mfrow=c(2,2))
+plot(mod5)
+```
+
+Dal grafico possiamo notare diverse cose: i residui si dispongono casualmente intorno alla media di zero, dal primo grafico infatti non visualizziamo pattern particolari e questo é positivo(Assunzione di media dei residui uguale a zero), nel qq plot possiamo notare che i residui seguono apparentemente una distribuzione normale tuttavia possiamo notare delle leggere discordanze nell'andamento soprattutto nelle code. Come avevamo notato all'inizio, la distribuzione dei nostri dati non seguiva una normale; questo é andato a ripercuotesi anche sui nostri residui. La varianza dei residui non sembra particolarmente costante, notiamo delle discrepenze soprattutto nella parte iniziale e nella parte finale del grafico, questo coincide con la distribuzione dei dati che abbiamo analizzato inizialmente. Per quanto riguarda la distanza di cook che é una distanza limite per valori particolarmente anomali possiamo notare che quel dato 1551 é quello maggiormente preoccupante tuttavia entro la soglia limite di 1.
+
+Andiamo a plottare dei grafici singoli per avere una visualizzazione migliore iniziamo dalla media uguale a zero con una distribuzione normale.
+
+```{r}
+par(mfrow= c(1,2))
+plot(residuals(mod5))
+abline(h=mean(residuals(mod5)), col=2)
+plot(density(residuals(mod5)))
+```
+
+Facciamo oltre ai test con i grafici anche i test matematici per saggiare le ipotesi di normalitá, varianza costante e autocorrelazione dei residui.
+
+```{r}
+shapiro.test(residuals(mod5))
+```
+
+Purtroppo come sospettavamo la distribuzione dei residui non segue una distribuzione normale.
+
+```{r}
+bptest(mod5)
+```
+
+Anche la varianza dei residui purtroppo non é costante possiamo notare come questa abbia riportato un valore del p-value estremamente piccolo.
+
+```{r}
+dwtest(mod5)
+```
+
+L'unico test che il modello é riuscito a superare é quello relativo alla non autocorrelazione dei residui.
+
+Andiamo a visualizzare il numero di leverage quindi osservazioni dei regressori distanti dalla media delle osservazioni.
+
+```{r}
+#leverage
+lev<- hatvalues(mod5)
+plot(lev)
+p= sum(lev)
+soglia<- 2*p/n
+abline(h=soglia, col=2)
+lev[lev>soglia]
+```
+
+```{r}
+#outliars
+plot(rstudent(mod5))
+abline(h=c(-2,2),col=2)
+outlierTest(mod5)
+```
+
+Purtroppo vediamo che ci sono 5 valori che rappresentano degli outlaiers questi possono essere considerati influenti nelle stime del nostro modello di regressione andiamo a vedere le distanze di cook per capire quanto questi siano influenti e andiamo a visualizzarli per capire effettivamente che caratterstiche hanno.
+
+```{r}
+indici_pericolosi<-c(1551,155,1306)
+dati[indici_pericolosi,]
+```
+
+Possiamo notare come questi siano effettivamente dei valori anomali l'osservazione 1551 e 1306 sono due femmine il cui peso é particolarmente alto nella fatispecie il 1551 é molto alto in peso considerando anche una lunghezza del corpo estremamente ridotta 315 , il maschio risulta invece particolarmente poco pesante con una gestazione di 36 probabilmente un parto prematuro; l'osservazione 1306 invece é di una femmina particolaremnte lunga e particolarmente pesante.
+
+Se andiamo a confrontare i valori con i boxplot e le distribuzioni fatte all'inizio dell'analisi noteremo che per quanto riguarda l'osservazione 1551 la lunghezza della bambina di 315 ricade all'interno degli outlaiers con un peso sproporzionato rispetto alla lunghezza del corpo; per quanto concerne l'osservazione 155 la lunghezza del bambino di 410 ricade negli outlairs con un peso particolarmente basso di 3610 ma non anomalo, infine per l'osservazione 1306 abbiamo un peso molto alto 4900 che ricade negli outlaiers e una lunghezza di 510 anch'essa elevata ma all'interno della norma.
+
+```{r}
+#distanze di cook
+cook<- cooks.distance(mod5)
+plot(cook)
+max(cook)
+```
+
+La distanza di cook fa registrare che per quanto riguarda l'influenza sul modello di regressione il dato piú pericoloso risulata l'osservazione 1551 con una distanza di cook prossima a 1.
+
+Vista la particolaritá di questo outlaiers creró un modello con il dataset modificato andando a rimuovere l'osservazione 1551, per verificare la sua effettiva influenza sul modello.
+
+```{r}
+dati_senza_1551<- dati
+dati_senza_1551<- dati_senza_1551[-1551,]
+```
+
+Ora proviamo a creare il modello 5 senza il dato in questione e andiamo a ricontrollare gli stessi plot e gli stessi test fatti in precedenza sui residui ma senza il dato considerato pericoloso.
+
+```{r}
+mod5_corretto<- lm(Peso ~ N.gravidanze + Gestazione + Lunghezza + Cranio + Sesso, data = dati_senza_1551)
+```
+
+```{r}
+par(mfrow= c(1,2))
+plot(residuals(mod5_corretto))
+abline(h=mean(residuals(mod5_corretto)), col=2)
+plot(density(residuals(mod5_corretto)))
+```
+
+```{r}
+shapiro.test(residuals(mod5_corretto))
+```
+
+La distribuzione dei residui continua ad essere non normale nonostante abbiamo rimosso dal dataset questi valori.
+
+```{r}
+bptest(mod5_corretto)
+```
+
+```{r}
+dwtest(mod5_corretto)
+```
+
+ATTENZIONE!!!! In questo caso possiamo notare l'influenza di questo outlaiers; la sua rimozione ha portato il test sulla varianza dei residui vicinissimo al limite del valore soglia 0.05, tuttavia non possiamo affermare che la sua rimozione abbia portato al superamento del test; quindi concludiamo che la sua rimozione non porti a conseguenze significative per il modello.
+
+```{r}
+summary(mod5_corretto)
+```
+
+Il modello 5 corretto eliminato l'outlaier al limite non ha rilevato particolari cambiamenti sui test relativi al modello.
+
+```{r}
+BIC(mod5,mod5_corretto)
+```
+
+Dal test BIC il modello migliore risulta il modello 5_corretto; tuttavia avendo analizzato gli otulaiers ci siamo resi conto che questi non sono errori dovuti al campionamento come era successo per i dati relativi all'etá bensi sono casi eccezionali ma plausibili per tanto non li rimuoveremo dal dataset e per effettuare le nostre previsioni utilizzeremo il mod5.
+
+## Previsioni
+
+Per effettuare la previsione ho deciso di utilizzare il modello 5.
+
+Non avendo purtroppo dati dall'ecografia inseriró al posto dei dati mancanti la mediana corrispettiva delle variabili essendo la stima piú solida ad eventuali outlaiers
+
+```{r}
+mediana_Lunghezza<-median(Lunghezza)
+mediana_Cranio<- median(Cranio)
+livelli_sesso <- levels(dati$Sesso)
+
+dati_previsione<- data.frame(N.gravidanze= 3, Gestazione= 39, Lunghezza=mediana_Lunghezza, Cranio= mediana_Cranio, Sesso=factor("M", levels = livelli_sesso))
+
+```
+
+```{r}
+predictions_mod5<- predict(mod5, newdata = dati_previsione)
+predictions_mod5
+```
+
+## Grafici.
+
+Nei grafici successivi ho diviso le variabili a due a due per dare un'idea in tridimensione del nostro modello di regressione.
+
+```{r}
+scatter3d(Peso ~ Lunghezza+Gestazione , data = dati)
+```
+
+```{r}
+ggplot(data=dati)+
+  geom_point(aes(x=Lunghezza,
+                 y=Peso,
+                 col= Sesso), position='jitter')+
+  geom_smooth(aes(x=Lunghezza,
+                  y=Peso,
+                  col=Sesso), se=F, method = 'lm')
+```
+
+Graficamente possiamo notare come peso e lunghezza siano fortemente correlati, oltresi notiamo che i maschi abbiamo dei pesi tendenzialmente maggiori dall'analisi dei boxplot dedicati avevamo notato una differenza significativa dei due gruppi e questo é chiaramente visibile dal modello. Quindi tendenzialmente piú i bmabini sono lunghi e di genere maschile piú i bambini pesano.
+
+```{r}
+scatter3d(Peso ~ Lunghezza+Gestazione , data = dati)
+```
+
+```{r}
+ggplot(data=dati)+
+  geom_point(aes(x=Gestazione,
+                 y=Peso,
+                 col= Sesso), position='jitter')+
+  geom_smooth(aes(x=Gestazione,
+                  y=Peso,
+                  col=Sesso), se=F, method = 'lm')
+```
+
+Anche per la variabile gestazione possiamo notare che piú le settimane aumentano piú il valore del peso del bambino cresce in particolar modo dalla 37esima settimana, anche in questo caso i valori dei maschi sono tendenzialmente piú alti dei valori delle femmine.
+
+```{r}
+scatter3d(Peso ~ Lunghezza+Cranio , data = dati)
+```
+
+```{r}
+ggplot(data=dati)+
+  geom_point(aes(x=Cranio,
+                 y=Peso,
+                 col= Sesso), position='jitter')+
+  geom_smooth(aes(x=Cranio,
+                  y=Peso,
+                  col=Sesso), se=F, method = 'lm')
+```
+
+Per quanto concerne la larghezza del cranio anche in questo caso abbiamo un andamento crescente in relazione al peso con i maschi che si attestano con valori superiori alle femmine.
+
+```{r}
+ggplot(data=dati)+
+  geom_point(aes(x=Gestazione,
+                 y=Peso,
+                 col=Fumatrici ), position='jitter')+
+  geom_smooth(aes(x=Gestazione,
+                  y=Peso,
+                  col=Fumatrici), se=F, method = 'lm')
+```
+
+## Conclusioni
+
+In conclusione possiamo dire che le variabili maggiormente significative per quanto riguarda una previsione per il peso del neonato sono: la lunghezza, la dimensione del cranio, il sesso e le settimane di gestazione. Le altre variabili non hanno fatto registrare variazioni statisticamente significative. La variabile fumatrici tuttavia rimane quella un pelo piú particolare come dicevamo in fase di analisi vi é una presenza estremamente maggiore di donne non fumatrici rispetto alle fumatrici tuttavia dal boxplot si é notata una certa differenza se pur a conti fatti non significativa dal punto di vista statisco; é possibile supporre che se avessimo un numero di fumatrici maggiore tale variabile avrebbe un peso maggiore se non significativo sul peso del bambino.
+
+## 
